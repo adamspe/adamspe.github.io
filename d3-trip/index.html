@@ -12,7 +12,7 @@ date:   2015-01-22 12:00:00
   stroke-width: .5;
 }
 .marker {
-  fill:steelblue;
+  fill: steelblue;
 }
 .link {
   fill: none;
@@ -50,7 +50,6 @@ mapBoxMap = 'examples.map-0l53fhk2';
 mapBoxMap = 'examples.map-i87786ca';
 mapBoxMap = 'examples.map-zr0njcqy';
 */
-//mapBoxMap = 'examples.map-i86nkdio';
 
 var projection = d3.geo.mercator()
     .center([-96, 38.3])
@@ -120,7 +119,6 @@ var EARTH_R_M = 3961.0,
             return Math.round(x*1000)/1000;
         }
         return function(point1,point2) {
-            //console.debug('haversine',point1,point2);
             /*
             dlon = lon2 - lon1
             dlat = lat2 - lat1

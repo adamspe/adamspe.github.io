@@ -6,15 +6,15 @@ categories: d3 mapping
 ---
 Continuing my learning of [D3] I have started to delve into geographic visualizations.  Some things I was interested in learning were:
 
-- How to translate latitude/longitude into x/y coordinates to be used in a svg so for instance I could place dots on a map as map markers.
-- How to connect my "map markers" via svg paths (nice looking paths not straight lines) and animate the drawing of those paths.
-- How to place pointers on the end of my paths so once they were drawn they conveyed direction.
+- How to translate latitude/longitude into x/y coordinates to be used in a SVG so, for instance, I could place dots on a map as map markers.
+- How to connect my "map markers" via SVG paths (cool looking paths not straight lines) and animate the drawing of those paths.
+- How to place pointers on the end of my paths so once they were drawn they convey direction.
 
 I chose to use a silly visualization that drew lines between a list of coordinates representing stops on a fictitious road trip.  [Here's a link to the end result](/d3-trip/).
 
 I started with Mike Bostock's [Clipped Map Tiles](http://bl.ocks.org/mbostock/4150951) example.
 
-Translating latitude/longitude into x,y turns out is super simple.  This involves simply passing the coordinates to your [GEO Projection](https://github.com/mbostock/d3/wiki/Geo-Projections).  I then simply took an array of coordinates and annotated them with x,y values via my projection and did the normal [D3] enter selection thing to add them to my map using a transition so the markers would scale in.  I delayed each transition based on a constant transition duration which is also used for drawing paths so that when one path completes the next marker shows up (nothing fancy, just basic timing).
+Translating latitude/longitude into x/y turns out is super simple.  This involves simply passing the coordinates to your [GEO Projection](https://github.com/mbostock/d3/wiki/Geo-Projections).  I then simply took an array of coordinates and annotated them with x/y values via my projection and did the normal [D3] enter selection thing to add them to my map using a transition so the markers would scale in.  I delayed each transition based on a constant transition duration which is also used for drawing paths so that when one path completes the next marker shows up (nothing fancy, just basic timing).
 
 To connect the dots I used [d3.svg.diagonal](https://github.com/mbostock/d3/wiki/SVG-Shapes#diagonal) and then found another [D3 Example](http://bl.ocks.org/duopixel/4063326) that illustrated how to animate my paths.  The only thing I had to deal with was that the example is only dealing with a single path not multiple paths so I had to annotate my link objects with calculated path lengths for each and then pass a callback in to set the `stroke-dasharray` and `stroke-dashoffset` attributes like:
 
