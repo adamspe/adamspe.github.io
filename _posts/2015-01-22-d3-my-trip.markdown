@@ -3,6 +3,7 @@ layout: post
 title:  "D3 Animated Map Visualization"
 date:   2015-01-22 12:00:00
 categories: d3 mapping
+d3trip: true
 ---
 Continuing my learning of [D3] I have started to delve into geographic visualizations.  Some things I was interested in learning were:
 
