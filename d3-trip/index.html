@@ -20,6 +20,18 @@ date:   2015-01-22 12:00:00
   stroke-width: 2px;
   //marker-end: url('#pointer');
 }
+.link.red {
+  stroke: red;
+}
+.link.green {
+  stroke: green;
+}
+.link.blue {
+  stroke: blue;
+}
+.link.firebrick {
+  stroke: firebrick;
+}
 #pointer {
   fill: orange;
 }
@@ -32,8 +44,54 @@ date:   2015-01-22 12:00:00
   margin-left: 30px;
   font-family: monospace;
 }
+#controls {
+}
+#controls label {
+  margin-left: 20px;
+  font-weight: 400;
+}
+#per-redraw-controls, #active-controls {
+  margin-bottom: 10px;
+}
 </style>
+<div id="controls">
+  <div id="per-redraw-controls">
+    <label for="tile-servers-control">Map Tile Server</label>
+    <select id="tile-servers-control" class="per-redraw-control"></select>
+
+    <label for="trans-duration-control">Transition Duration</label>
+    <select id="trans-duration-control" class="per-redraw-control" onchange="setTransitionDuration(this)">
+      <option value="500">1/2 S</value>
+      <option value="1000" selected>1 S</option>
+      <option value="1500">1 1/2 S</option>
+      <option value="2000">2 S</option>
+    </select>
+
+    <button id="redraw-control" class="per-redraw-control" onclick="redraw()">Redraw</button>
+  </div>
+
+  <div id="active-controls">
+    <label for="clipping-control">Clip Map</label>
+    <input id="clipping-control" type="checkbox" onchange="toggleClipping(this)" checked="true"></input>
+
+    <label for="link-color-control">Link Color</label>
+    <select id="link-color-control" onchange="setLinkClass(this)">
+      <option value="link">Default (Grey)</option>
+      <option value="link red">Red</option>
+      <option value="link green">Green</option>
+      <option value="link blue">Blue</option>
+      <option value="link firebrick">Fire Brick</option>
+    </select>
+  </div>
+</div>
+
 <div id="map"></div>
+<br />
+<p>
+Some learning that uses <a href="http://bl.ocks.org/mbostock/4150951" target="mbostock">http://bl.ocks.org/mbostock/4150951</a> as a starting point.  Learning how to translate lat/lon into points on a map some basics of d3.svg.diagonal and svg paths.
+Map tiles fetched from <a href="http://mapbox.com/" target="mapbox">MapBox</a> (<a href="http://mapbox.com/tilemill/gallery/#mapbox.natural-earth-2" target="mapbox">MapBox Natural Earth II</a> raster tiles).
+</p>
+
 <script src="http://d3js.org/d3.v3.min.js"></script>
 <script src="http://d3js.org/d3.geo.tile.v0.min.js"></script>
 <script src="http://d3js.org/topojson.v1.min.js"></script>
@@ -43,13 +101,29 @@ var width = 960,
     height = 500,
     markerR = 7;
     transitionDuration = 1000;
-    mapBoxMap = 'mapbox.natural-earth-2';
-/*
-mapBoxMap = 'examples.map-i86nkdio';
-mapBoxMap = 'examples.map-0l53fhk2';
-mapBoxMap = 'examples.map-i87786ca';
-mapBoxMap = 'examples.map-zr0njcqy';
-*/
+
+var tileServers = [
+  {name: 'OpenStreetMap Standard', baseUrl: function() { return "http://"+["a", "b", "C"][Math.random() * 3 | 0]+".tile.openstreetmap.org/"; }},
+  {name: 'MapQuest Open', baseUrl: function() { return "http://otile"+["1", "2", "3", "4"][Math.random() * 4 | 0]+".mqcdn.com/tiles/1.0.0/osm/"; }},
+  {name: 'MapQuest Satellite', baseUrl: function() { return "http://ttiles0"+["1", "2", "3", "4"][Math.random() * 4 | 0]+".mqcdn.com/tiles/1.0.0/vy/sat/"}}
+];
+// add the mapbox servers
+['mapbox.natural-earth-2','examples.map-i86nkdio','examples.map-0l53fhk2','examples.map-i87786ca','examples.map-zr0njcqy'].forEach(function(id){
+  tileServers.push({name: 'MapBox '+id, baseUrl: function() {return "http://" + ["a", "b", "c", "d"][Math.random() * 4 | 0] + ".tiles.mapbox.com/v3/"+id+"/";}})
+});
+tileServers.forEach(function(s,i) {
+  s.id = i;
+});
+
+var randomServerIdx = Math.random() * (tileServers.length-1) | 0;
+var controls = d3.select('#tile-servers-control')
+    .selectAll('option')
+    .data(tileServers)
+    .enter()
+    .append('option')
+    .attr('value',function(d) { return d.id; })
+    .attr('selected',function(d) { return randomServerIdx === d.id; })
+    .text(function(d) { return d.name; });
 
 var projection = d3.geo.mercator()
     .center([-96, 38.3])
@@ -68,13 +142,59 @@ var map = d3.select("#map");
 var svg = map.append("svg")
     .attr("width", width)
     .attr("height", height);
+  // add a marker for paths
+  svg.append('marker')
+     .attr('id','pointer').attr('viewBox','0 0 10 10').attr('refX','0').attr('refY','5')
+     .attr('markerUnits','strokeWidth').attr('markerWidth','4').attr('markerHeight','3').attr('orient','auto')
+     .append('path').attr('d','M 0 0 L 10 5 L 0 10 z');
 
 var info = map.append('div')
       .attr('id','info');
 
-d3.json("us.json", function(error, topology) {
-  var tiles = tile();
+function toggleClipping(chk) {
+  d3.select('#tiles').attr('clip-path',chk.checked ? 'url(#clip)' : null);
+}
 
+function setLinkClass(sel) {
+  d3.selectAll('.link').attr('class',sel.options[sel.selectedIndex].value);
+}
+
+function setTransitionDuration(sel) {
+  transitionDuration = parseInt(sel.options[sel.selectedIndex].value);
+}
+
+function redraw() {
+  d3.selectAll('.per-redraw-control').attr('disabled','true');
+  var serverIdx = document.getElementById('tile-servers-control').selectedIndex,
+      tiles = tile();
+  // for simplicity remove elements and start over
+  ['#tiles','#markers','#links'].forEach(function(s){
+    d3.select(s).remove();
+  });
+
+  svg.append("g")
+      .attr('id','tiles')
+      .attr("clip-path", function() { return d3.select('#clipping-control').attr('checked') ? 'url(#clip)' : null; })
+    .selectAll("image")
+      .data(tiles)
+    .enter().append("image")
+      .attr('class','tile')
+      .attr("xlink:href", function(d) {
+        return tileServers[serverIdx].baseUrl()+ d[2] + "/" + d[0] + "/" + d[1] + ".png";
+      })
+      .attr("width", Math.round(tiles.scale))
+      .attr("height", Math.round(tiles.scale))
+      .attr("x", function(d) { return Math.round((d[0] + tiles.translate[0]) * tiles.scale); })
+      .attr("y", function(d) { return Math.round((d[1] + tiles.translate[1]) * tiles.scale); });
+
+  // pause for a short time before animating the trip so that
+  // map tiles have a chance to be drawn
+  setTimeout(function() {
+    animateRoute(svg,info);
+  },1500);
+}
+
+d3.json("us.json", function(error, topology) {
   var defs = svg.append("defs");
 
   defs.append("path")
@@ -87,25 +207,11 @@ d3.json("us.json", function(error, topology) {
     .append("use")
       .attr("xlink:href", "#land");
 
-  svg.append("g")
-      .attr("clip-path", "url(#clip)")
-    .selectAll("image")
-      .data(tiles)
-    .enter().append("image")
-      .attr("xlink:href", function(d) { return "http://" + ["a", "b", "c", "d"][Math.random() * 4 | 0] + ".tiles.mapbox.com/v3/"+mapBoxMap+"/" + d[2] + "/" + d[0] + "/" + d[1] + ".png"; })
-      .attr("width", Math.round(tiles.scale))
-      .attr("height", Math.round(tiles.scale))
-      .attr("x", function(d) { return Math.round((d[0] + tiles.translate[0]) * tiles.scale); })
-      .attr("y", function(d) { return Math.round((d[1] + tiles.translate[1]) * tiles.scale); });
-
   svg.append("use")
       .attr("xlink:href", "#land")
       .attr("class", "stroke");
 
-  setTimeout(function() {
-    animateRoute(svg,info);
-  },2000);
-
+  redraw();
 });
 
 var EARTH_R_M = 3961.0,
@@ -168,7 +274,7 @@ function animateRoute(svg,info) {
         return d;
       });
 
-  var markers = svg.append("g"),
+  var markers = svg.append('g').attr('id','markers'),
       enter = markers.selectAll('.marker')
          .data(markerData,function(d){ return d.id; })
          .enter(),
@@ -184,16 +290,13 @@ function animateRoute(svg,info) {
           .on('mouseover',function(d){info.text(d.name);})
           .on("mouseout", function(d){info.text("");});
       circles.append('title').text(function(d) { return d.name; });
-      circles.attr("r",0)
+      circles.attr('r',0)
           .transition()
           .delay(function(d){return d.id*transitionDuration; })
           .duration(transitionDuration)
           .attr('r',function(d) { return markerR; });
 
-  svg.append('marker')
-     .attr('id','pointer').attr('viewBox','0 0 10 10').attr('refX','0').attr('refY','5')
-     .attr('markerUnits','strokeWidth').attr('markerWidth','4').attr('markerHeight','3').attr('orient','auto')
-     .append('path').attr('d','M 0 0 L 10 5 L 0 10 z');
+
 
   var linkData = markerData.reduce(function(data,tgt,i,a){
     if(i > 0) {
@@ -212,12 +315,15 @@ function animateRoute(svg,info) {
       .source(function(d) { return {"x":d.source.y, "y":d.source.x}; })
       .target(function(d) { return {"x":d.target.y, "y":d.target.x}; })
       .projection(function(d) { return [d.y, d.x]; });
+  var colorCtrl = document.getElementById('link-color-control'),
+      linkClass = colorCtrl.options[colorCtrl.selectedIndex].value;
   var link = svg.append("g")
+    .attr('id','links')
     .selectAll('.link')
     .data(linkData)
     .enter()
-    .append("path")
-    .attr('class','link')
+    .append('path')
+    .attr('class',function() { return linkClass; })
     .attr('d',diagonal);
 
   link.each(function(d){
@@ -238,6 +344,9 @@ function animateRoute(svg,info) {
           haversine(d.source.point,d.target.point));*/
         asTheCrowFlies += haversine(d.source.point,d.target.point).miles;
         info.text(d.target.point.name+ ' (As the crow flies '+miFormat(asTheCrowFlies)+' miles)');
+        if(d.id === linkData.length) {
+          d3.selectAll('.per-redraw-control').attr('disabled',null);
+        }
       })
       .delay(function(d) { return d.id*transitionDuration; })
       .duration(transitionDuration)
@@ -245,7 +354,3 @@ function animateRoute(svg,info) {
       .attr("stroke-dashoffset", 0);
 }
 </script>
-<p>
-Some learning that uses <a href="http://bl.ocks.org/mbostock/4150951" target="mbostock">http://bl.ocks.org/mbostock/4150951</a> as a starting point.  Learning how to translate lat/lon into points on a map some basics of d3.svg.diagonal and svg paths.
-Map tiles fetched from <a href="http://mapbox.com/" target="mapbox">MapBox</a> (<a href="http://mapbox.com/tilemill/gallery/#mapbox.natural-earth-2" target="mapbox">MapBox Natural Earth II</a> raster tiles).
-</p>
