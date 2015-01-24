@@ -193,6 +193,9 @@ pre {
  * Icons
  */
 .icon {
+    i {
+        color: $grey-color;
+    }
 
     > svg {
         display: inline-block;
