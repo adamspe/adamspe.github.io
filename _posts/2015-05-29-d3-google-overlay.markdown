@@ -36,9 +36,7 @@ E.g.
       overlay.onAdd = function() {
         var layer = d3.select(this.getPanes().overlayMouseTarget)
             .append("svg")
-            .attr('class','stations')
-            .attr('width',window.innerWidth+'px')
-            .attr('height',window.innerHeight+'px');
+            .attr('class','stations');
         overlay.draw = function(){
           var projection = this.getProjection(),
               sw = projection.fromLatLngToDivPixel(bounds.getSouthWest()),
@@ -54,7 +52,7 @@ E.g.
             .attr('height',(sw.y - ne.y) + 'px')
             .style('position','absolute')
             .style('left',sw.x+'px')
-            .style('top',ne.y+'px')
+            .style('top',ne.y+'px');
     ...
 
 Then when placing markers their position needs to just be adjusted by the values of `sw.x` and `ne.y`.

@@ -63,9 +63,7 @@ d3.json("stations.json", function(data) {
   overlay.onAdd = function() {
     var layer = d3.select(this.getPanes().overlayMouseTarget)
         .append("svg")
-        .attr('class','stations')
-        .attr('width',window.innerWidth+'px')
-        .attr('height',window.innerHeight+'px');
+        .attr('class','stations');
     overlay.draw = function(){
       var projection = this.getProjection(),
           sw = projection.fromLatLngToDivPixel(bounds.getSouthWest()),
@@ -81,7 +79,7 @@ d3.json("stations.json", function(data) {
         .attr('height',(sw.y - ne.y) + 'px')
         .style('position','absolute')
         .style('left',sw.x+'px')
-        .style('top',ne.y+'px')
+        .style('top',ne.y+'px');
 
       var marker = layer.selectAll('.marker')
         .data(d3.entries(data))
