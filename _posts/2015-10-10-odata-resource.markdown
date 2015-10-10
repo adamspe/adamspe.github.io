@@ -7,7 +7,7 @@ categories: nodejs mongodb mongoose express
 
 #odata-resource
 
-Just authored a new [NPM](https://www.npmjs.com/) module for building REST APIs on [Express](http://expressjs.com/) over [MongoDB](https://www.mongodb.com/) and [Mongoose](http://mongoosejs.com/).
+Just published a new [NPM](https://www.npmjs.com/) module for building REST APIs on [Express](http://expressjs.com/) over [MongoDB](https://www.mongodb.com/) and [Mongoose](http://mongoosejs.com/).
 
 <ul class="list-unstyled">
     <li><a href="https://www.npmjs.com/package/odata-resource"><i class="fa fa-link"></i> NPM module home</a></li>
