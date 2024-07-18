@@ -1,23 +1,350 @@
----
-layout: default
----
-
-<div class="home">
-
-  <h1 class="page-heading">Posts</h1>
-
-  <ul class="post-list">
-    {% for post in site.posts %}
-      <li>
-        <span class="post-meta">{{ post.date | date: "%b %-d, %Y" }}</span>
-
-        <h2>
-          <a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
-        </h2>
-      </li>
-    {% endfor %}
-  </ul>
-
-  <p class="rss-subscribe">subscribe <a href="{{ "/feed.xml" | prepend: site.baseurl }}">via RSS</a></p>
-
+<!DOCTYPE html>
+<pre>
+TODO
+toggle finger borders different colors for scale numbers
+toggle between notes and scale numbers
+calculate chord names for triads
+alternate tunings (add string notes to left of nut)
+</pre>
+<style>
+body {
+    background-color: #eaeaea;
+}
+#container {
+    margin-top: 50px;
+    margin-bottom: 30px;
+}
+</style>
+<div id="container"></div>
+<div id="controls">
+    <label for="roots">Root</label>
+    <select id="roots"></select>
+    <label for="scales">Scale</label>
+    <select id="scales"></select>
+    <label for="triads">Highlight</label>
+    <select id="triads"></select>
 </div>
+<pre id="details"></pre>
+<script type="module">
+
+import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+
+const FLAT = (note) => `${note}\u266D`;
+const SHARP = (note) => `${note}\u266F`;
+const NOTES = [ 'C',SHARP('C'),'D',FLAT('E'),'E','F',SHARP('F'),'G',SHARP('G'),'A',FLAT('B'),'B'];
+const CIRCULAR_NEXT = (circularArray,current) => {
+    const i = circularArray.indexOf(current);
+    return i < circularArray.length-1 ? circularArray[i+1] : circularArray[0];
+};
+const NEXT_NOTE = (note) => CIRCULAR_NEXT(NOTES,note);
+
+class Scale {
+    // steps = [WH<number>]+ W=whole tone H=semi-tone <number>=number of semi-tones (2=W, 1=H)
+    constructor(title,steps) {
+        this.title = title;
+        this.steps = steps;
+        this.setRoot('C');
+    }
+
+    setRoot(root) {
+        this.root = root;
+        this.notes = this.steps.split('').reduce((notes,wh) => {
+                const semiTones = (wh === 'H')
+                    ? 1
+                    : ((wh === 'W') ? 2 : parseInt(wh))
+                let n = notes[notes.length-1];
+                for(let i = 0; i < semiTones; i++) {
+                    n = NEXT_NOTE(n);
+                }
+                notes.push(n);
+                return notes;
+            },[root]);
+        // steps, per my scales book, will loop back around CDEFGABC)
+        if(this.notes[0] === this.notes[this.notes.length-1]) {
+            this.notes.splice((this.notes.length-1),1);
+        }
+        this.triads = this.notes.map(one => {
+            const three = CIRCULAR_NEXT(this.notes,CIRCULAR_NEXT(this.notes,one))
+            const five = CIRCULAR_NEXT(this.notes,CIRCULAR_NEXT(this.notes,three))
+            return [one,three,five];
+        });
+        this.focusedTriad = null;
+        return this;
+    }
+
+    toString() {
+        const triads = this.triads.map((t,i) => `[${i+1}] ${t.join(' ')}`).join("\n");
+        return `${this.root} ${this.title}\n\nNotes\n${this.notes.join(' ')}\n\nTriads (chords)\n${triads}`;
+    }
+
+    includes(note) {
+        return this.notes.includes(note);
+    }
+
+    setFocusedTriad(triad) {
+        this.focusedTriad = triad;
+    }
+
+    highlightNote(note) {
+        return !!this.focusedTriad
+            ? this.focusedTriad.includes(note)
+            : note === this.root;
+    }
+}
+
+// Declare the chart dimensions and margins.
+const width = 1100;
+const height = 180;
+const neckPadding = 15; // distance from the edge of the neck to the E strings
+const fingerRadius = neckPadding-3;
+const fretMarkerRadius = fingerRadius-4;
+const fretMarkerFill = '#483827';
+const noteYOffset = 5; // pushes the text in a finger bubble down to center it, not calculated, could be better
+const fretCount = 16;
+const fretWidth = 4;
+const stringWidth = 2;
+const nutWidth = fretWidth*2;
+const topPadding = 20; // distance between highest fret and end of neck
+
+const fretBoardLength = (width-nutWidth-topPadding);
+const fretSeparation = (fretBoardLength-(fretWidth*fretCount))/fretCount;
+
+const highlightFill = '#aaa';
+
+// Create the SVG container.
+const svg = d3.create("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+const neck = svg.append("g").attr("class","neck");
+neck.append("rect")
+    .attr("class","fretboard")
+    .attr("width",width)
+    .attr("height",height)
+    .attr("fill","#794b2a")
+    .attr("stroke","#000")
+const frets = neck.append("g").attr("class","frets");
+frets.append("rect")
+    .attr("class","nut")
+    .attr("width",nutWidth)
+    .attr("height",height)
+    .attr("fill","#ededed");
+
+class Fret {
+    constructor(index) {
+        this.index = index;
+        this.x = (fretBoardLength/fretCount)*(index+1);
+        this.fretNumber = index+1;
+    }
+
+    draw() {
+        frets.append("rect")
+            .attr("class",`fret fret-${this.fretNumber}`)
+            .attr("x",this.x)
+            .attr("width",fretWidth)
+            .attr("height",height)
+            .attr("fill","#969799");
+        if([3,5,7,9,15,17,19,21].includes(this.fretNumber)) {
+            frets.append("circle")
+                .attr("stroke-width",0.5)
+                .attr("fill",fretMarkerFill)
+                .attr("r",fretMarkerRadius)
+                .attr("cx",(this.x-(fretSeparation/2)))
+                .attr("cy",(height/2));
+        } else if (this.fretNumber === 12) {
+            const y1 = (height/2)+(fretMarkerRadius*4);
+            const y2 = (height/2)-(fretMarkerRadius*4);
+            frets.append("circle")
+                .attr("stroke-width",0.5)
+                .attr("fill",fretMarkerFill)
+                .attr("r",fretMarkerRadius)
+                .attr("cx",(this.x-(fretSeparation/2)))
+                .attr("cy",y1);
+            frets.append("circle")
+                .attr("stroke-width",0.5)
+                .attr("fill",fretMarkerFill)
+                .attr("r",fretMarkerRadius)
+                .attr("cx",(this.x-(fretSeparation/2)))
+                .attr("cy",y2);
+        }
+        return this;
+    }
+}
+const FRETS = [];
+for(let i = 0; i < fretCount; i++) {
+    FRETS.push(new Fret(i).draw());
+}
+
+const stringsG = neck.append("g")
+    .attr("class","strings")
+    .attr("transform",`translate(0,${neckPadding})`);
+const fingers = neck.append("g")
+    .attr("class","fingers")
+    .attr("transform",`translate(0,${neckPadding})`);
+
+class String {
+    constructor(note,index) {
+        this.note = note;
+        this.index = index;
+        this.y = (this.index*((height-(neckPadding*2))/5));
+        this.fingerG = fingers.append("g")
+            .attr("class",`fingers-${note}-${index}`)
+            .attr("transform",`translate(0,${this.y})`);
+    }
+
+    draw() {
+        stringsG.append("rect")
+            .attr("class",`string ${this.note}`)
+            .attr("width",width)
+            .attr("height",stringWidth)
+            .attr("fill","#e1bb95")
+            .attr("y",this.y);
+        return this;
+    }
+
+    notes(scale) {
+        this.fingerG.selectAll('.finger').remove();
+        let n = this.note;
+        for(let i = 0; i < fretCount; i++) {
+            n = NEXT_NOTE(n);
+            if(!!scale && !scale.includes(n)) {
+                continue;
+            }
+            const fg =  this.fingerG.append("g")
+                .attr("class","finger")
+            const x = FRETS[i].x-(fretSeparation/2);
+            fg.append("circle")
+                .attr("fill",!!scale && scale.highlightNote(n) ? highlightFill : "#fff")
+                .attr("stroke-width",0.5)
+                .attr("stroke",'#000')
+                .attr("r",fingerRadius)
+                .attr("cx",x);
+            fg.append("text")
+                .attr("x",x)
+                .attr("y",noteYOffset)
+                .attr("text-anchor","middle")
+                .text(n)
+        }
+    }
+}
+
+const strings = ['E','B','G','D','A','E'].map((node,index) => new String(node,index));
+strings.forEach(s => s.draw().notes());
+
+const SCALES = {
+    a: null,
+    b: new Scale("Major (Ionian)","WWHWWWH"),
+    c: new Scale("Natural minor (Aeolian)","WHWWHWW"),
+    d: new Scale("Dorian","WHWWWHW"),
+    e: new Scale("Phrygian","HWWWHWW"),
+    f: new Scale("Lydian","WWWHWWH"),
+    g: new Scale("Mixolydian","WWHWWHW"),
+    h: new Scale("Locrian","HWWHWWW"),
+    i: new Scale("Harmonic minor","WHWWH3"), // has a 1.5 step = 3
+    j: new Scale("Jazz melodic minor","WHWWWWH"),
+    k: new Scale("Lydian flat-seven","WWWHWHW"),
+    l: new Scale("Pentatonic (major)","WW3W3"),
+    m: new Scale("Pentatonic (minor)","3WW3W"),
+};
+
+let currentRoot = 'C';
+let currentScale = null;
+let currentTriad = -1;
+const details = document.querySelector('#details');
+const triadsSelect = document.querySelector("select#triads");
+function update(what) {
+    if(what !== "triad") {
+        while(triadsSelect.firstChild) {
+            triadsSelect.removeChild(triadsSelect.lastChild);
+        }
+        const highLightRoot = document.createElement("option");
+        highLightRoot.value = 0;
+        highLightRoot.innerHTML = !!currentScale ? "[0] Root note" : '';
+        triadsSelect.append(highLightRoot);
+        details.innerHTML = '';
+        if(!!currentScale) {
+            details.innerHTML = currentScale.setRoot(currentRoot).toString();
+            currentScale.triads.forEach((triad,index) => {
+                const [one,three,five] = triad;
+                const text = `[${index+1}] ${one} ${three} ${five}`;
+                
+                const opt = document.createElement("option");
+                opt.value = (index+1);
+                opt.innerHTML = text;
+                triadsSelect.append(opt);
+            });
+        }
+    }
+
+    strings.forEach(s => s.notes(currentScale));
+}
+
+function setTriad(triadIndex,updateSelect) {
+    if(!!currentScale) {
+        currentScale.setFocusedTriad(
+            (!isNaN(triadIndex) && triadIndex > 0 && triadIndex < (currentScale.triads.length+1))
+                ? currentScale.triads[triadIndex-1]
+                : null
+        );
+        update("triad");
+        if(updateSelect) {
+            for(let i = 0; i < triadsSelect.options.length; i++) {
+                if(triadIndex == triadsSelect.options[i].value) {
+                    triadsSelect.options[i].selected = true;
+                    break;
+                }
+            }
+        }
+    }
+}
+triadsSelect.addEventListener("change",() => setTriad(parseInt(triadsSelect.value)));
+
+const rootsSelect = document.querySelector('select#roots');
+NOTES.forEach(n => {
+    const opt = document.createElement("option");
+    opt.value = opt.innerHTML = n;
+    rootsSelect.append(opt);
+});
+rootsSelect.addEventListener("change",function() {
+    currentRoot = rootsSelect.value;
+    update("root");
+});
+
+const scalesSelect = document.querySelector('select#scales');
+for(let keyBinding in SCALES) {
+    const scale = SCALES[keyBinding];
+    const opt = document.createElement("option");
+    opt.value = opt.innerHTML = `[${keyBinding}] ${!!scale ? scale.title : 'All Notes'}`;
+    scalesSelect.append(opt);
+}
+function setScale(keyBinding,updateSelect) {
+    currentScale = SCALES[keyBinding];
+    update("scale");
+    if(updateSelect) {
+        const test = new RegExp(`^\\[${keyBinding}\\]`);
+        for(let i = 0; i < scalesSelect.options.length; i++) {
+            if(test.test(scalesSelect.options[i].value)) {
+                scalesSelect.options[i].selected = true;
+                break;
+            }
+        }
+    }
+}
+scalesSelect.addEventListener("change",() => setScale(/^\[(.*)\]/.exec(scalesSelect.value)[1]));
+
+document.addEventListener("keyup",function(event) {
+    if(Object.keys(SCALES).includes(event.key)) {
+        setScale(event.key,true);
+    } else if (!!currentScale && !isNaN(event.key)) {
+        let triadIndex = parseInt(event.key);
+        // avoid say pressing 8 from setting it back to "Root note"
+        if(triadIndex >= 0 && triadIndex < (currentScale.triads.length+1)) {
+            setTriad(triadIndex,true);
+        }
+    }2
+});
+
+// Append the SVG element.
+container.append(svg.node());
+
+</script>
